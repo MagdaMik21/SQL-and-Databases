@@ -1,2 +1,2 @@
 # SQL-and-Databases
-My SQL Projects
+In the repository, my projects and analyses conducted using SQL and Python with appropriate libraries will be appearing.
