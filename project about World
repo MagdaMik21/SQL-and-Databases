@@ -1,0 +1,140 @@
+import pandas as pd
+import sqlite3
+
+!wget -q -O factbook.db http://bioinf-mw.bihz.upwr.edu.pl/resources/dataquest/factbook.db
+
+def query_db_sql(db_file_path, sql):
+  connection = sqlite3.connect(db_file_path)
+  cursor = connection.cursor()
+  result = cursor.execute(sql)
+  column_names = list(map(lambda x: x[0], result.description))
+  rows = result.fetchall()
+  df = pd.DataFrame(rows, columns=column_names)
+  connection.close()
+  return df
+
+def fact(sql):
+  return query_db_sql('factbook.db', sql)
+#Zdefiniowałam dwie funkcje, które posłużą mi za bazę do manipulacji na bazie danych facts dzięki Pythonowi i jego bibliotek.
+
+sql='''SELECT * FROM sqlite_master WHERE type='table';'''
+fact(sql)
+
+sql='''SELECT * FROM facts LIMIT 5;'''
+fact(sql)
+
+sql='''
+SELECT name, population FROM facts
+WHERE population = 0 OR population > 7000000000
+'''
+fact(sql)
+#Z wcześniejszych analiz wyszło, że jest kraj z populacją wynoszącą 0 osób oraz inny kraj z populacją przekraczającą 7,2 miliarda ludzi. Możemy w ten inny sposób dojść do tego jakie to są kraje.
+
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+q1 = "SELECT * FROM sqlite_master WHERE type='table';"
+tables = fact(q1)
+print(tables)
+
+q5 = '''
+SELECT population, population_growth, birth_rate, death_rate FROM facts
+WHERE population < (SELECT MAX(population) FROM facts) AND population > 0;
+'''
+df1 = fact(q5)
+
+fig = plt.figure(figsize=(10, 8))
+ax1 = fig.add_subplot(1, 1, 1)
+df1.hist(ax=ax1)
+ax1.grid(False)
+plt.show()
+#Przygotowałam analizę poprzez wykresy do zbadania wskaźnika urodzeń i zgonów, wraz z populacją i stopą wzrostu populacji. Wskaźnik urodzeń wynosi maksymalnie 25 na 1000 osób w większości krajów na świecie, natomiast wskaźnik zgonów nie przekracza 15 na 1000 osób.
+
+Obserwując dane, można zauważyć, że w większości krajów rodzi się 10-15 osób na 1000, a umiera około 7 na 1000, co ogólnie jest pozytywnym wskaźnikiem przeżywalności.
+
+Zauważalne jest również, że prawie każdy kraj na świecie, z kilkoma wyjątkami, ma populację do około 100 milionów osób i stopę wzrostu populacji wynoszącą do 4%.
+
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+q6 = '''
+SELECT name heavily_populated, population FROM facts
+WHERE population > 100000000 AND name != (SELECT name FROM facts WHERE name IN ('European Union'))
+ORDER BY population DESC
+LIMIT 11;
+'''
+heavily_populated = fact(q6)
+heavily_populated = heavily_populated[heavily_populated['heavily_populated'] != 'World']
+
+ax = heavily_populated.plot(x='heavily_populated', y='population', kind='bar', rot=40, legend=False)
+ax.set_title('Heavily Populated Countries')
+ax.set_xlabel("Country")
+ax.set_ylabel("Population")
+ax.grid(False)
+plt.show()
+#Przeprowadzona zosyaje analiza odnośnie największych krajów pod względem zaludnienia. Wyraźnie widać, że przeważają Chiny i Indie, z ponad 1,2 miliarda mieszkańców, najbardziej zaludnionymi krajami na świecie są USA, Indonezja i Brazylia.
+
+
+q7 = '''
+SELECT name, CAST(population as float)/CAST(area_land as float) population_density FROM facts
+WHERE population < (SELECT MAX(Population) FROM facts) AND population > 0;
+'''
+population_density = fact(q7)
+
+fig = plt.figure(figsize=(10, 8))
+ax3 = fig.add_subplot(1, 1, 1)
+population_density.hist(ax=ax3)
+ax3.grid(False)
+plt.show()
+#Stworzony został histogram odnośnie gęstości zaludnienia na metr kwadratowy.Większość krajów ma gęstość zaludnienia do około 2500 osób na kilometr kwadratowy, z wyjątkiem kilku, gdzie wynosi ona od 5000 do 20000 osób na kilometr kwadratowy.
+
+
+q6 = '''
+SELECT name heavily_populated, population FROM facts
+WHERE population > 100000000 AND name != (SELECT name FROM facts WHERE name IN ('European Union'))
+ORDER BY population DESC
+LIMIT 11;
+'''
+heavily_populated = fact(q6)
+heavily_populated = heavily_populated[heavily_populated['heavily_populated'] != 'World']
+
+q7 = '''
+SELECT name, CAST(population as float)/CAST(area_land as float) population_density FROM facts
+WHERE population < (SELECT MAX(Population) FROM facts) AND population > 0;
+'''
+population_density = fact(q7)
+
+populated_countries = heavily_populated['heavily_populated'].tolist()
+
+populated_countries_density = population_density[population_density['name'].isin(populated_countries)]
+populated_countries_density = populated_countries_density.sort_values('population_density', ascending=False)
+
+q8 = "SELECT * FROM facts;"
+countries = fact(q8)
+
+large_countries = countries[countries['name'].isin(populated_countries)].sort_values('area_land', ascending=False)
+
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 16))
+
+populated_countries_density.plot(x='name', y='population_density', kind='bar', rot=40, legend=False, ax=ax1)
+ax1.set_title('Population Density of\n Highly Populated Countries')
+ax1.set_xlabel("Country")
+ax1.set_ylabel("Population Density/Square Meter")
+ax1.grid(False)
+
+large_countries.plot(x='name', y='area_land', kind='bar', rot=40, legend=False, ax=ax2)
+ax2.set_title('Area of Highly Populated Countries')
+ax2.set_xlabel("Country")
+ax2.set_ylabel("Area (Square Meters)")
+ax2.grid(False)
+
+plt.show()
+#Ostatnia analiza ma na celu sprawdzić, które kraje mają najwyższą gęstość zaludnienia i czy są one również najbardziej zaludnione.
+
+Mimo że Chiny i Indie są uznawane za dwa najbardziej zaludnione kraje na świecie, to tylko Indie zachowują swoje miejsce jako drugi kraj o największej gęstości zaludnienia, ze względu na swoją mniejszą powierzchnię w porównaniu do Chin.
+
+Rosja, pomimo mniejszej populacji, zajmuje pierwsze miejsce pod względem wielkości obszaru na świecie, co tłumaczy, dlaczego jest ona najmniej zaludnionym krajem spośród dziesięciu najbardziej zaludnionych. Natomiast Bangladesz, choć początkowo miał znacznie mniejszą populację niż Indie czy Chiny, to ze względu na swoją znacznie mniejszą powierzchnię, zajmuje pierwsze miejsce na wykresie gęstości zaludnienia.
+
+
