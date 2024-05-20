@@ -1,0 +1,149 @@
+!wget -q -O factbook.db http://bioinf-mw.bihz.upwr.edu.pl/resources/dataquest/factbook.db
+%load_ext sql
+%sql sqlite:///factbook.db
+
+%sql SELECT * FROM facts LIMIT 7;
+
+
+%%capture
+%load_ext sql
+%sql sqlite:///factbook.db
+
+%%sql
+SELECT *
+FROM facts
+LIMIT 5;
+#Wczytujemy dane i możemy zobaczyć na czym będziemy prowadzić analizy. Nasza baza danych "facts" zawiera id kraju, kod kraju, nazwę kraju, wielkość powierzhcni, wielkość lądu, wielkość wody, wielkość populacji, stopę wzrostu liczby ludności, wskaźnik urodzeń, wskaźnik śmiertelności oraz wskaźnik migracji. Taka operacja pozwoliła nam na wstępne zapoznanie się z danymi.
+
+%%sql
+SELECT *
+  FROM facts
+ WHERE type='table';
+
+
+ %%sql
+SELECT MIN(population), MAX(population), MIN(population_growth), MAX(population_growth)
+FROM facts;
+#Wykonane zostały podstawowe statystyki. Otrzymaliśmy informację, że minimalnie wielkość populacji to 0, maksymalnie 7256490011. Jeżeli chodzi o stopę wzrostu ludności to jest kraj z zerową stopą, a jest z wielkością 4.02. Na podstawie tych analiz możemy postawić wniosek, że istnieje kraj z zerową wielkością populacji = brak zaludnienia.
+
+
+%%sql
+SELECT *
+FROM facts
+WHERE population == (SELECT MIN(population) FROM facts);
+#Chcemy sprawdzić, który kraj posiada najmniejszą wielkość populacji. Dostajemy informację, że jest to Antarktyda. Otrzymujemy od razu również inne parametry, gdzie widzimy zerowe wskaźniki urodzeń i zgonów oraz migracji. Możemy wnioskować, że miejsce to jest kompletnie bezludne.
+
+
+%%sql
+SELECT *
+FROM facts
+WHERE population == (SELECT MAX(population) FROM facts);
+#Podobną statystykę przeprowadzamy dla maksymalnej wielkości populacji. Chcemy otrzymać kraj, jednak tabela facts wyrzuca nam, że największą wielkość populacji ma świat. Nie jest to zgodne z naszymi oczekiwaniami, więc musimy wykluczyć wynik "świat" z poszukiwań, aby uzyskać kraj jako wynik. Wiedząc, że w tabeli występują wyniki dla świata musimy pominąć go w podstawowych statystykach dla krajów.
+
+
+%%sql
+SELECT MAX(population), MIN(population),MAX(population_growth),MIN(population_growth)
+FROM facts
+WHERE name IS NOT "World";
+#Przeprowadzone zostają ponownie statystyki podstawowe max i min wykluczając zmienną "świat". Otrzymujemy inne wartości największej liczby populacji. "population_growth" się nie zmienia, tak samo jak min(population).
+
+
+%%sql
+SELECT AVG(population),AVG(area)
+FROM facts
+WHERE name IS NOT "World";
+#Obliczona zostaje średnaia wielkość populacji i średnia wielkość powierzchni wykluczając wartości zmiennej "World". Otrzymujemy po kolei średnią wielkość populacji o wartości 32242666.56846473 oraz średnią wielkość powierzchni o wartości 555093.546184739.
+
+
+%%sql
+SELECT *
+FROM facts
+WHERE population > (SELECT AVG(population)
+FROM facts
+WHERE name IS NOT "World")
+AND
+area < (SELECT AVG(area)
+FROM facts
+WHERE name IS NOT "World");
+#Chcemy sprawdzić, które kraje mają większą wielkość populacji od średniej przy mniejszej powierzchni od średniej. Pierwszym naszym wynikiem pojawia się Bangladesz. Możemy zobaczyć różnicę w obliczanych zmiennych odnośnie wielkości populacji i powierzchni.
+
+
+%%sql
+SELECT name, population, area, population-AVG(population) AS difference_population, area-AVG(area) AS difference_area
+FROM facts
+WHERE population > (SELECT AVG(population)
+FROM facts
+WHERE name IS NOT "World")
+AND
+area < (SELECT AVG(area)
+FROM facts
+WHERE name IS NOT "World");
+#W dodatkowej analizie widzimy, że Bangladesz ma aż o 96864680.57142857 większą wielkość populacji względem średniej i mniejszą wielkość powierzchni o 181279.78571428574.
+
+
+%%sql
+SELECT name, MAX(population)
+FROM facts
+WHERE name IS NOT "World";
+#Znajdujemy kraj, który ma najwięcej ludzi, wykluczając zmienną "World". Naszym wynikiem są Chiny z wielkością populacji o wartości 1367485388.
+
+
+%%sql
+SELECT name, population_growth
+FROM facts
+ORDER BY population_growth DESC
+LIMIT 1;
+#Kraj z największą stopą wzrostu ludności to Południowy Sudan o wartości 4.02.
+
+
+%%sql
+SELECT name, CAST(area_water as float)/CAST(area as float) water_ratio
+FROM facts
+ORDER BY water_ratio DESC
+LIMIT 5;
+#Poszukujemy kraju, który ma największy stosunek wody do ziemi. Ograniczamy wyszukwania do 5 najlepszych wyników. W wyniku wyszkuwania dostajemy informację,że największy stosunek ma British Indian Ocean Territory.
+
+
+%%sql
+SELECT name water_countries, area_water-area_land AS difference
+FROM facts
+WHERE area_water > area_land;
+#Przeprowadzamy analizę,który kraj posiada większą powierzchnię wody niż lądu. Obliczamy dodatkowo różnicę, Otrzymujemy dwa dopasowania:British Indian Ocean Territory i Virgin Islands.
+
+%%sql
+SELECT name, area_water, area_land, area_water/area_land AS relation
+FROM facts
+WHERE area_land > 0  AND area_water>0
+ORDER BY relation DESC
+LIMIT 5;
+#Najwyższy stosunek wody do ziemi posiadają British Indian Ocean Territory.
+
+
+%%sql
+SELECT name, population, population_growth,
+       (population * population_growth / 100) AS projected_population_increase
+FROM facts
+WHERE name IS NOT "World"
+ORDER BY projected_population_increase DESC
+LIMIT 5;
+#W celu znalezienia które kraje zwiększą w przyszłym roku największą liczbę ludności w swojej populacji została wykonana operacja dzielenia i na szczycie wyniku znajdują się Indie.
+
+%%sql
+SELECT name,death_rate,birth_rate, death_rate-birth_rate AS difference, population
+FROM facts
+WHERE birth_rate<death_rate
+ORDER BY difference DESC;
+#W wyniku otrzymujemy kraje, gdzie jest większy wskaźnik umieralności względem urodzeń. Dodajemy dodatkową kolumnę obliczającą różnicę między tymi wskaźnikami i Bulgaria posiada największą różnicę między umieralnością, a urodzeniami.
+
+
+%%sql
+SELECT name, population, area,
+       (population / area) AS population_density
+FROM facts
+WHERE area > 0  -- Upewniamy się, że nie dzielimy przez zero
+ORDER BY population_density DESC
+LIMIT 5;
+#Kraj, który ma największy stosunek populacji do powierzchni to Makau. Nie zgadza się to z ekranem podstawowej częsci raportu, gdzie Bangladesz miał większą populację od średniej i mniejszą powierzchnię od średniej.
+
+Należałoby przeprowadzić dalsze analizy, aby ustosunkować się do różnych wyników.
+
